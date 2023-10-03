@@ -303,7 +303,8 @@ def train(args, epoch, model, scaler, amp_context, optimizer, schedule, train_lo
             msg['info/epoch'] = epoch + 1
             msg['info/lr'] = get_lr(optimizer)
             # 计算训练精确度,并存入wandb的日志当中
-            cal_train_metrics(args, msg, outs, labels, batch_size, model.selector.thresholds)
+            cal_train_metrics(args, msg, outs, labels, batch_size)
+            # cal_train_metrics(args, msg, outs, labels, batch_size, model.selector.thresholds)
             wandb.log(msg)
         # 现实进度，每次现实10%
         train_progress = (batch_id + 1) / total_batchs

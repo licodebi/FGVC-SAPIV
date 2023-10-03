@@ -21,7 +21,7 @@ def suppression(target: torch.Tensor, threshold: torch.Tensor, temperature: floa
     return target
 
 @torch.no_grad()
-def cal_train_metrics(args, msg: dict, outs: dict, labels: torch.Tensor, batch_size: int, thresholds: dict):
+def cal_train_metrics(args, msg: dict, outs: dict, labels: torch.Tensor, batch_size: int):
     """
     only present top-1 training accuracy
     """
