@@ -29,7 +29,6 @@ class SPTransformer(nn.Module):
         logits={}
         x = self.embeddings(x)
         x, xc,cls_token_list = self.encoder(x, test_mode)
-        print(len(cls_token_list))
         final_hid=torch.cat(cls_token_list,dim=-1)
         struct_outs=self.part_head(final_hid)
         complement_logits = self.head(xc)

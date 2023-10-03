@@ -5,9 +5,9 @@ use_wandb: True
 wandb_entity: libicheng
 train_root: ./CUB200-2011/train/
 val_root: ./CUB200-2011/test/
-data_size: 384
+data_size: 448
 num_workers: 2
-batch_size: 1
+batch_size: 2
 model_name: vit-b_16
 pretrained: ~
 optimizer: SGD
