@@ -2,7 +2,7 @@ import math
 import numpy as np
 from timm.scheduler.cosine_lr import CosineLRScheduler
 # 实现余弦衰减学习率
-def cosine_decay(args,optimizer, batchs: int, decay_type: int = 1):
+def cosine_decay(args, batchs: int, decay_type: int = 1):
     # 总batchs数=迭代数*batch数
     total_batchs = args.max_epochs * batchs
     #计算剩余batch数
