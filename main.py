@@ -198,7 +198,7 @@ def train(args, epoch, model, scaler, amp_context, optimizer, schedule, train_lo
             loss= 0.
             for name in outs:
                 if "struct_outs" in name:
-                    loss_so=nn.CrossEntropyLoss()(outs[name].view(-1,args.num_classes),labels.view(-1))
+                    loss_so=nn.CrossEntropyLoss()(outs[name],labels)
                     loss_si+=loss_so
                 # 如果时上采样的结果
                 # if "layer" in name:
@@ -208,13 +208,13 @@ def train(args, epoch, model, scaler, amp_context, optimizer, schedule, train_lo
                 #     else:
                 #         loss_b0 = 0.0
                 elif "last_token" in name:
-                    loss_co = con_loss_new(outs[name], labels.view(-1))
+                    loss_co = con_loss_new(outs[name], labels)
                     loss_si+=loss_co
                 elif "assist_outs" in name:
-                    loss_ao=nn.CrossEntropyLoss()(outs[name].view(-1,args.num_classes),labels.view(-1))
+                    loss_ao=nn.CrossEntropyLoss()(outs[name],labels)
                     loss_pi+=args.lambda_a*loss_ao
                 elif "comb_outs" in name:
-                    loss_co=nn.CrossEntropyLoss()(outs[name].view(-1,args.num_classes),labels.view(-1))
+                    loss_co=nn.CrossEntropyLoss()(outs[name],labels)
                     loss_pi+=(1-args.lambda_a)*loss_co
 
                 # 如果使用了选择器

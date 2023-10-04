@@ -31,26 +31,26 @@ def cal_train_metrics(args, msg: dict, outs: dict, labels: torch.Tensor, batch_s
     total_loss = 0.0
     for name in outs:
         if "struct_outs" in name:
-            acc = top_k_corrects(outs[name].view(-1, args.num_classes), labels.view(-1), tops=[1])["top-1"] / batch_size
+            acc = top_k_corrects(outs[name], labels, tops=[1])["top-1"] / batch_size
             msg["train_acc/struct_outs_acc"] = acc
-            loss_so = nn.CrossEntropyLoss()(outs[name].view(-1, args.num_classes), labels.view(-1))
+            loss_so = nn.CrossEntropyLoss()(outs[name], labels)
             msg["train_loss/struct_outs_loss"] = loss_so
             loss_si += loss_so
 
         elif "last_token" in name:
-            loss_co = con_loss_new(outs[name], labels.view(-1))
+            loss_co = con_loss_new(outs[name], labels)
             msg["train_loss/last_token_loss"] = loss_co
             loss_si += loss_co
         elif "assist_outs" in name:
-            acc = top_k_corrects(outs[name].view(-1, args.num_classes), labels.view(-1), tops=[1])["top-1"] / batch_size
+            acc = top_k_corrects(outs[name], labels, tops=[1])["top-1"] / batch_size
             msg["train_acc/assist_outs_acc"] = acc
-            loss_ao = nn.CrossEntropyLoss()(outs[name].view(-1, args.num_classes), labels.view(-1))
+            loss_ao = nn.CrossEntropyLoss()(outs[name], labels)
             msg["train_loss/assist_outs_loss"] = loss_ao
             loss_pi += args.lambda_a * loss_ao
         elif "comb_outs" in name:
-            acc = top_k_corrects(outs[name].view(-1, args.num_classes), labels.view(-1), tops=[1])["top-1"] / batch_size
+            acc = top_k_corrects(outs[name], labels, tops=[1])["top-1"] / batch_size
             msg["train_acc/comb_outs_acc"] = acc
-            loss_co = nn.CrossEntropyLoss()(outs[name].view(-1, args.num_classes), labels.view(-1))
+            loss_co = nn.CrossEntropyLoss()(outs[name], labels)
             msg["train_loss/comb_outs_loss"] = loss_co
             loss_pi += (1 - args.lambda_a) * loss_co
     # 如果使用了fpn
