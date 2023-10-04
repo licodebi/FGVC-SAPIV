@@ -1,7 +1,8 @@
 import math
 import numpy as np
+from timm.scheduler.cosine_lr import CosineLRScheduler
 # 实现余弦衰减学习率
-def cosine_decay(args, batchs: int, decay_type: int = 1):
+def cosine_decay(args,optimizer, batchs: int, decay_type: int = 1):
     # 总batchs数=迭代数*batch数
     total_batchs = args.max_epochs * batchs
     #计算剩余batch数
@@ -21,7 +22,18 @@ def cosine_decay(args, batchs: int, decay_type: int = 1):
         warmup_lr_schedule = np.linspace(1e-9, args.max_lr, args.warmup_batchs)
         # 将warmup_lr_schedule与之间schedule的进行连接
         schedule = np.concatenate((warmup_lr_schedule, schedule))
-
+    # lr_min=args.max_lr* 0
+    # warmup_lr = args.max_lr * 1e-3
+    # schedule=CosineLRScheduler(
+    #     optimizer=optimizer,
+    #     t_initial=total_batchs,
+    #     lr_min=lr_min,
+    #     warmup_lr_init=warmup_lr,
+    #     warmup_t=args.warmup_batchs,
+    #     warmup_prefix=True,
+    #     cycle_limit=1,
+    #     t_in_epochs=False,
+    # )
     return schedule
 
 def get_lr(optimizer):

@@ -246,63 +246,7 @@ class Block(nn.Module):
 			self.ffn_norm.weight.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "scale")]))
 			self.ffn_norm.bias.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "bias")]))
 # 多头投票模块
-class MultiHeadVoting(nn.Module):
-	def __init__(self, config, vote_perhead=24, fix=True):
-		super(MultiHeadVoting, self).__init__()
-		self.fix = fix
-		# 得到头数
-		self.num_heads = config.num_heads
-		# 得到每个头的需要的patch数
-		self.vote_perhead = vote_perhead
-		#
-		if self.fix:
-			# 创建一个大小为(1,1,3,3)的平滑滤波器
-			self.kernel = torch.tensor([[1, 2, 1],
-			                            [2, 4, 2],
-			                            [1, 2, 1]], device='cuda').unsqueeze(0).unsqueeze(0).half()
-			self.conv = F.conv2d
-		else:
-			# 执行二维卷积,分别为输入通道,输出通道,卷积核大小,步长,填充
-			self.conv = nn.Conv2d(1, 1, 3, 1, 1)
-	# 得到的权重的值为(B,Head,S+1,S+1)
-	def forward(self, x, select_num=None, last=False):
-		# 得到B和patch大小
-		B, patch_num = x.shape[0], x.shape[3] - 1
-		# 选取的patch数
-		select_num = self.vote_perhead if select_num is None else select_num
-		#创建一个值为0的张量,大小为(B, patch_num)，数据类型为半精度浮点数
-		count = torch.zeros((B, patch_num), dtype=torch.int, device='cuda').half()
-		# 得到class token 每个patch的分数,大小为(B,Head,1,S)
-		score = x[:, :, 0, 1:]
-		# 获取每个头上分数为前vote_perhead个对应的patch的索引
-		# select的形状(B, Head, 1, self.vote_perhead)
-		_, select = torch.topk(score, self.vote_perhead, dim=-1)
-		# select的形状变为(B, Head*self.vote_perhead)
-		select = select.reshape(B, -1)
-		# 记录每个样本中，被选择的patch在多头中出现的次数
-		for i, b in enumerate(select):
-			count[i, :] += torch.bincount(b, minlength=patch_num)
-		# 如果last不为真
-		if not last:
-			count = self.enhace_local(count)
-			pass
-		# 对count进行排序，得到排序后的值以及对应的索引
-		patch_value, patch_idx = torch.sort(count, dim=-1, descending=True)
-		# 所有索引+1，从0开始变为从1开始
-		patch_idx += 1
-		# 取前select_num个索引，
-		return patch_idx[:, :select_num], count
-	def enhace_local(self,count):
-			# 得到B和H
-		B, H = count.shape[0], math.ceil(math.sqrt(count.shape[1]))
-		# 将count转为B,H,H
-		count = count.reshape(B, H, H)
-		# 如果fix为真，则将B变为(B,1,H, H)通过一个大小为3x3的卷积核，最后重新变为(B,S)
-		if self.fix:
-			count = self.conv(count.unsqueeze(1), self.kernel, stride=1, padding=1).reshape(B, -1)
-		else:
-			count = self.conv(count.unsqueeze(1)).reshape(B, -1)
-		return count
+
 # if __name__ == '__main__':
 # from core.vit import *
 # config = get_b16_config()

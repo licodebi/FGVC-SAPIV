@@ -41,7 +41,34 @@ class SPTransformer(nn.Module):
         logits['comb_outs']=comb_outs
         logits['assist_outs']=complement_logits
         return logits
+    def load_from(self,weights):
+        with torch.no_grad():
+            self.embeddings.patch_embeddings.weight.copy_(np2th(weights["embedding/kernel"],conv=True))
+            self.embeddings.patch_embeddings.bias.copy_(np2th(weights["embedding/bias"]))
+            self.embeddings.cls_token.copy_(np2th(weights["cls"]))
+            self.encoder.part_norm.weight.copy_(np2th(weights["Transformer/encoder_norm/scale"]))
+            self.encoder.part_norm.bias.copy_(np2th(weights["Transformer/encoder_norm/bias"]))
+            posemb = np2th(weights["Transformer/posembed_input/pos_embedding"])
+            posemb_new=self.embeddings.position_embeddings
+            if posemb.size() == posemb_new.size():
+                self.embeddings.position_embeddings.copy_(posemb)
+            else:
+                ntok_new = posemb_new.size(1)
+                posemb_tok, posemb_grid = posemb[:, :1], posemb[0, 1:]
+                ntok_new -= 1
+                gs_old = int(np.sqrt(len(posemb_grid)))
+                gs_new = int(np.sqrt(ntok_new))
+                posemb_grid = posemb_grid.reshape(gs_old, gs_old, -1)
 
+                zoom = (gs_new / gs_old, gs_new / gs_old, 1)
+                posemb_grid = ndimage.zoom(posemb_grid, zoom, order=1)
+                posemb_grid = posemb_grid.reshape(1, gs_new * gs_new, -1)
+                posemb = np.concatenate([posemb_tok, posemb_grid], axis=1)
+                self.embeddings.position_embeddings.copy_(np2th(posemb))
+                for bname, block in self.encoder.named_children():
+                    for uname, unit in block.named_children():
+                        if not bname.startswith('key') and not bname.startswith('clr') and not bname.startswith('part') and not bname.startswith('stru'):
+                            unit.load_from(weights, n_block=uname)
 class SAPEncoder(nn.Module):
     def __init__(self,config,update_warm,patch_num,total_num):
         super(SAPEncoder, self).__init__()
@@ -68,7 +95,6 @@ class SAPEncoder(nn.Module):
         self.select_num = self.select_rate * self.total_num
         self.clr_encoder = CrossLayerRefinement(config, self.clr_layer)
         self.part_structure = Part_Structure(config.hidden_size)
-        self.part_norm = LayerNorm(config.hidden_size, eps=1e-6)
         self.count = 0
 
     def forward(self,hidden_states, test_mode=False):
@@ -380,6 +406,13 @@ if __name__ == '__main__':
     # com.to(device='cuda')
     net = SPTransformer(config,200,448,500,84,128,split='non-overlap').cuda()
     # hidden_state = torch.arange(400*768).reshape(2,200,768)/1.0
-    x = torch.rand(2, 3, 448, 448, device='cuda')
-    y = net(x)
-    print(y.keys())
+    # x = torch.rand(2, 3, 448, 448, device='cuda')
+    # y = net(x)
+    # print(y.keys())
+    # for name, param in net.state_dict().items():
+    #     print(name)
+    pretrained_weights = np.load('ViT-B_16.npz')
+    net.load_from(pretrained_weights)
+
+    # for name, param in pretrained_weights.items():
+    #     print(name)

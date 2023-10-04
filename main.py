@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -69,8 +70,8 @@ def set_environment(args, tlogger):
         img_size=args.data_size,
         update_warm=args.warmup_batchs,
         num_selects=args.num_selects,
-        patch_num=args.patch_num
-
+        patch_num=args.patch_num,
+        split=args.split
     )
     # 如果预训练不为空
     if args.pretrained is not None:
@@ -79,6 +80,7 @@ def set_environment(args, tlogger):
         model.load_state_dict(checkpoint['model'])
         start_epoch = checkpoint['epoch']
     else:
+        model.load_from(np.load("./models/ViT-B_16.npz"))
         start_epoch = 0
 
     # model = torch.nn.DataParallel(model, device_ids=None) # device_ids : None --> use all gpus.
@@ -163,7 +165,7 @@ def train(args, epoch, model, scaler, amp_context, optimizer, schedule, train_lo
         # 输入总迭代数，优化器以及lr衰减序列
         # 对当前迭代的学习率进行调整
         adjust_lr(iterations, optimizer, schedule)
-        
+        # schedule.step(iterations)
         # temperature = (args.temperature - 1) * (get_lr(optimizer) / args.max_lr) + 1
 
         batch_size = labels.size(0)
