@@ -68,8 +68,8 @@ class SPTransformer(nn.Module):
                 for bname, block in self.encoder.named_children():
                     for uname, unit in block.named_children():
                         if not bname.startswith('key') and not bname.startswith('clr') and not bname.startswith('part') and not bname.startswith('stru'):
-                            print(uname)
-                            # unit.load_from(weights, n_block=uname)
+                            # print(uname)
+                            unit.load_from(weights, n_block=uname)
 class SAPEncoder(nn.Module):
     def __init__(self,config,update_warm,patch_num,total_num):
         super(SAPEncoder, self).__init__()
