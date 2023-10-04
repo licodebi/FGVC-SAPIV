@@ -14,7 +14,8 @@ from utils.costom_logger import timeLogger
 from utils.config_utils import load_yaml, build_record_folder, get_args
 from utils.lr_schedule import cosine_decay, adjust_lr, get_lr
 from eval import evaluate, cal_train_metrics, suppression
-
+import sys
+sys.setrecursionlimit(10**5)
 warnings.simplefilter("ignore")
 
 
