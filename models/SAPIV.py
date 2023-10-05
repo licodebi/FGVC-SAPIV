@@ -107,8 +107,10 @@ class SAPEncoder(nn.Module):
         class_token_list = []
         for i,layer in enumerate(self.layer):
             hidden_states,weights=layer(hidden_states)
+            print(hidden_states.shape)
             # 取9,10,11层
-            select_idx,self_score=self.patch_select(hidden_states,weights)
+            select_num = torch.round(self.select_num[i]).int()
+            select_idx,self_score=self.patch_select(weights,select_num)
             selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
             selected_hidden_list.append(selected_hidden)
             class_token_list.append(hidden_states[:, 0].unsqueeze(1))
@@ -413,7 +415,7 @@ if __name__ == '__main__':
     config = get_b16_config()
     # com = clrEncoder(config,)
     # com.to(device='cuda')
-    net = SPTransformer(config,200,448,500,84,128,split='non-overlap').cuda()
+    net = SPTransformer(config,200,448,500,24,126,split='non-overlap').cuda()
     # hidden_state = torch.arange(400*768).reshape(2,200,768)/1.0
     x = torch.rand(2, 3, 448, 448, device='cuda')
     y = net(x)
