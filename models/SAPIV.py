@@ -128,7 +128,6 @@ class SAPEncoder(nn.Module):
         cls_token = hidden_states[:,0].unsqueeze(1)
         clr, weights = self.clr_encoder(selected_hidden_list, cls_token)
         sort_idx, _ = self.patch_select(weights, select_num=24, last=True)
-
         # part_states, part_weights=self.part_layer(hidden_states)
         # _,attention_map=self.part_attention(part_weights)
         # part_states= self.part_structure(part_states,attention_map)
