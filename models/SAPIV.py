@@ -29,15 +29,15 @@ class SPTransformer(nn.Module):
         logits={}
         x = self.embeddings(x)
         x, xc,cls_token_list = self.encoder(x, test_mode)
-        final_hid=torch.cat(cls_token_list,dim=-1)
-        struct_outs=self.part_head(final_hid)
+        # final_hid=torch.cat(cls_token_list,dim=-1)
+        # struct_outs=self.part_head(final_hid)
         complement_logits = self.head(xc)
         probability = self.softmax(complement_logits)
         weight = self.head.weight
         assist_logit = probability * (weight.sum(-1))
         comb_outs = self.head(x) + assist_logit
-        logits['last_token']=cls_token_list[3]
-        logits['struct_outs']=struct_outs
+        # logits['last_token']=cls_token_list[3]
+        # logits['struct_outs']=struct_outs
         logits['comb_outs']=comb_outs
         logits['assist_outs']=complement_logits
         return logits
@@ -91,7 +91,8 @@ class SAPEncoder(nn.Module):
         self.part_attention=Part_Attention()
         # 总共选择层的大小一般为126，得到后三层每层选择的大小
         self.total_num=total_num
-        self.select_rate = torch.tensor([42, 42, 42], device='cuda') / self.total_num
+        # self.select_rate = torch.tensor([42, 42, 42], device='cuda') / self.total_num
+        self.select_rate = torch.tensor([16, 14, 12, 10, 8, 6, 8, 10, 12, 14, 16], device='cuda') / self.total_num
 
         self.select_num = self.select_rate * self.total_num
         self.clr_encoder = CrossLayerRefinement(config, self.clr_layer)
@@ -107,26 +108,33 @@ class SAPEncoder(nn.Module):
         for i,layer in enumerate(self.layer):
             hidden_states,weights=layer(hidden_states)
             # 取9,10,11层
-            if i>=8:
-                j=i-8
-                _,attention_map=self.part_attention(weights)
-                # 此时的cls_token具有结构信息
-                hidden_states=self.part_structure(hidden_states,attention_map)
-                select_hidden_states,select_weights=self.stru_atten(hidden_states)
-                select_num=torch.round(self.select_num[j]).int()
-                select_idx, select_score=self.patch_select(select_weights,select_num)
-                selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
-                selected_hidden_list.append(selected_hidden)
-                class_token_list.append(self.part_norm(hidden_states[:,0]))
+            select_idx,self_score=self.patch_select(hidden_states,weights)
+            selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
+            selected_hidden_list.append(selected_hidden)
+            class_token_list.append(hidden_states[:, 0].unsqueeze(1))
+            # if i>=8:
+            #     j=i-8
+            #     _,attention_map=self.part_attention(weights)
+            #     # 此时的cls_token具有结构信息
+            #     hidden_states=self.part_structure(hidden_states,attention_map)
+            #     select_hidden_states,select_weights=self.stru_atten(hidden_states)
+            #     select_num=torch.round(self.select_num[j]).int()
+            #     select_idx, select_score=self.patch_select(select_weights,select_num)
+            #     selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
+            #     selected_hidden_list.append(selected_hidden)
+            #     class_token_list.append(self.part_norm(hidden_states[:,0]))
+        cls_token = hidden_states[:,0].unsqueeze(1)
+        clr, weights = self.clr_encoder(selected_hidden_list, cls_token)
+        sort_idx, _ = self.patch_select(weights, select_num=24, last=True)
 
-        part_states, part_weights=self.part_layer(hidden_states)
-        _,attention_map=self.part_attention(part_weights)
-        part_states= self.part_structure(part_states,attention_map)
-        cls_token=part_states[:,0].unsqueeze(1)
-        class_token_list.append(self.part_norm(part_states)[:,0])
-        # select_hidden_states, select_weights = self.stru_atten(part_states)
-        clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
-        sort_idx, _ = self.patch_select(weights, select_num=84, last=True)
+        # part_states, part_weights=self.part_layer(hidden_states)
+        # _,attention_map=self.part_attention(part_weights)
+        # part_states= self.part_structure(part_states,attention_map)
+        # cls_token=part_states[:,0].unsqueeze(1)
+        # class_token_list.append(self.part_norm(part_states)[:,0])
+        # # select_hidden_states, select_weights = self.stru_atten(part_states)
+        # clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
+        # sort_idx, _ = self.patch_select(weights, select_num=84, last=True)
         if not test_mode and self.count >= self.warm_steps:
             layer_count=self.count_patch(sort_idx)
             self.update_layer_select(layer_count)
@@ -407,13 +415,13 @@ if __name__ == '__main__':
     # com.to(device='cuda')
     net = SPTransformer(config,200,448,500,84,128,split='non-overlap').cuda()
     # hidden_state = torch.arange(400*768).reshape(2,200,768)/1.0
-    # x = torch.rand(2, 3, 448, 448, device='cuda')
-    # y = net(x)
+    x = torch.rand(2, 3, 448, 448, device='cuda')
+    y = net(x)
     # print(y.keys())
     # for name, param in net.state_dict().items():
     #     print(name)
-    pretrained_weights = np.load('ViT-B_16.npz')
-    net.load_from(pretrained_weights)
+    # pretrained_weights = np.load('ViT-B_16.npz')
+    # net.load_from(pretrained_weights)
 
     # for name, param in pretrained_weights.items():
     #     print(name)
