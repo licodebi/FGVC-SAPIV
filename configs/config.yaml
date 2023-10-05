@@ -13,7 +13,7 @@ pretrained: ~
 optimizer: SGD
 max_lr: 0.0005
 wdecay: 0.0003
-max_epochs: 80
+max_epochs: 50
 warmup_batchs: 1500
 use_amp: True
 use_fpn: True
@@ -37,5 +37,5 @@ lambda_b: 0.0
 lambda_a: 0.4
 update_freq: 4
 log_freq: 100
-eval_freq: 10
+eval_freq: 4
 temperature: 64
