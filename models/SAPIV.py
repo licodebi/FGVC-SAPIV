@@ -17,7 +17,7 @@ class SPTransformer(nn.Module):
         self.encoder=SAPEncoder(config,update_warm,patch_num,total_num)
         # self.head = Linear(config.hidden_size, num_classes)
         self.head = nn.Sequential(
-            nn.BatchNorm1d(config.hidden_size ),
+            nn.BatchNorm1d(config.hidden_size),
             Linear(config.hidden_size , 512),
             nn.BatchNorm1d(512),
             nn.ELU(inplace=True),
@@ -39,11 +39,15 @@ class SPTransformer(nn.Module):
         final_hid=torch.cat(cls_token_list,dim=-1)
         struct_outs=self.part_head(final_hid)
         complement_logits = self.head(xc)
-        # probability = self.softmax(complement_logits)
+        probability_assist = self.softmax(complement_logits)
+        weight_assist = list(self.head.parameters())[-1]
+        assist_logit = probability_assist * (weight_assist.sum(-1))
+        probability_struct=self.softmax(struct_outs)
+        weight_struct = list(self.part_head.parameters())[-1]
+        assist_struct = probability_struct * (weight_struct.sum(-1))
         # weight = self.head.weight
         # assist_logit = probability * (weight.sum(-1))
-        # comb_outs = self.head(x) + assist_logit
-        comb_outs = self.head(x)
+        comb_outs = self.head(x) + assist_logit+assist_struct
         logits['last_token']=cls_token_list[3]
         logits['struct_outs']=struct_outs
         logits['comb_outs']=comb_outs
@@ -419,13 +423,13 @@ if __name__ == '__main__':
     # com.to(device='cuda')
     net = SPTransformer(config,200,448,500,84,128,split='non-overlap').cuda()
     # hidden_state = torch.arange(400*768).reshape(2,200,768)/1.0
-    # x = torch.rand(2, 3, 448, 448, device='cuda')
-    # y = net(x)
+    x = torch.rand(2, 3, 448, 448, device='cuda')
+    y = net(x)
     # print(y.keys())
     # for name, param in net.state_dict().items():
     #     print(name)
-    pretrained_weights = np.load('ViT-B_16.npz')
-    net.load_from(pretrained_weights)
+    # pretrained_weights = np.load('ViT-B_16.npz')
+    # net.load_from(pretrained_weights)
 
     # for name, param in pretrained_weights.items():
     #     print(name)
