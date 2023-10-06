@@ -15,7 +15,14 @@ class SPTransformer(nn.Module):
         self.img_size=img_size
         self.embeddings=Embeddings(config,img_size=img_size,split=split)
         self.encoder=SAPEncoder(config,update_warm,patch_num,total_num)
-        self.head = Linear(config.hidden_size, num_classes)
+        # self.head = Linear(config.hidden_size, num_classes)
+        self.head = nn.Sequential(
+            nn.BatchNorm1d(config.hidden_size ),
+            Linear(config.hidden_size , 512),
+            nn.BatchNorm1d(512),
+            nn.ELU(inplace=True),
+            Linear(512, num_classes),
+        )
         self.softmax = Softmax(dim=-1)
         self.part_head = nn.Sequential(
             nn.BatchNorm1d(config.hidden_size * 4),
@@ -32,10 +39,11 @@ class SPTransformer(nn.Module):
         final_hid=torch.cat(cls_token_list,dim=-1)
         struct_outs=self.part_head(final_hid)
         complement_logits = self.head(xc)
-        probability = self.softmax(complement_logits)
-        weight = self.head.weight
-        assist_logit = probability * (weight.sum(-1))
-        comb_outs = self.head(x) + assist_logit
+        # probability = self.softmax(complement_logits)
+        # weight = self.head.weight
+        # assist_logit = probability * (weight.sum(-1))
+        # comb_outs = self.head(x) + assist_logit
+        comb_outs = self.head(x)
         logits['last_token']=cls_token_list[3]
         logits['struct_outs']=struct_outs
         logits['comb_outs']=comb_outs
@@ -114,18 +122,20 @@ class SAPEncoder(nn.Module):
                 hidden_states=self.part_structure(hidden_states,attention_map)
                 select_hidden_states,select_weights=self.stru_atten(hidden_states)
                 select_num=torch.round(self.select_num[j]).int()
-                select_idx, select_score=self.patch_select(select_weights,select_num)
+                select_idx, select_score = self.patch_select(weights, select_num)
+                # select_idx, select_score=self.patch_select(select_weights,select_num)
                 selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
                 selected_hidden_list.append(selected_hidden)
                 class_token_list.append(self.part_norm(hidden_states[:,0]))
-
+        last_token=hidden_states[:, 0].unsqueeze(1)
         part_states, part_weights=self.part_layer(hidden_states)
         _,attention_map=self.part_attention(part_weights)
         part_states= self.part_structure(part_states,attention_map)
         cls_token=part_states[:,0].unsqueeze(1)
         class_token_list.append(self.part_norm(part_states)[:,0])
         # select_hidden_states, select_weights = self.stru_atten(part_states)
-        clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
+        # clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
+        clr, weights = self.clr_encoder(selected_hidden_list, last_token)
         sort_idx, _ = self.patch_select(weights, select_num=84, last=True)
         if not test_mode and self.count >= self.warm_steps:
             layer_count=self.count_patch(sort_idx)
@@ -257,6 +267,7 @@ class RelativeCoordPredictor(nn.Module):
 
     def forward(self, x):
         # 得到图片的 N(Batch_Size),C,H,W
+        # H=28
         N, C, H, W = x.shape
         # 计算掩码mask
         # 得到形状为(N,H*W)的mask,表示每个像素上的通道数量
@@ -394,6 +405,7 @@ class Part_Attention(nn.Module):
         H = patch_num ** 0.5
         H = int(H)
         # C=注意力头数
+        # H=28
         attention_map = last_map.view(B,C,H,H)
         # last_map(batch_size, num_attention_heads, S-1)
         # 最大值索引(batch_size, num_attention_heads)
