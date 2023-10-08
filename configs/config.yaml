@@ -9,6 +9,7 @@ data_size: 448
 num_workers: 2
 batch_size: 4
 model_name: vit-b_16
+seed: 1
 pretrained: ~
 optimizer: SGD
 max_lr: 0.0005

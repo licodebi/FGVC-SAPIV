@@ -124,11 +124,12 @@ class SAPEncoder(nn.Module):
                 _,attention_map=self.part_attention(weights)
                 # 此时的cls_token具有结构信息
                 hidden_states=self.part_structure(hidden_states,attention_map)
-                select_hidden_states,select_weights=self.stru_atten(hidden_states)
+                # select_hidden_states,select_weights=self.stru_atten(hidden_states)
                 select_num=torch.round(self.select_num[j]).int()
                 select_idx, select_score = self.patch_select(weights, select_num)
                 # select_idx, select_score=self.patch_select(select_weights,select_num)
-                selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
+                # selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
+                selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
                 selected_hidden_list.append(selected_hidden)
                 class_token_list.append(self.part_norm(hidden_states[:,0]))
         last_token=hidden_states[:, 0].unsqueeze(1)
