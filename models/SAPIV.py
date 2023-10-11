@@ -25,8 +25,8 @@ class SPTransformer(nn.Module):
         )
         self.softmax = Softmax(dim=-1)
         self.part_head = nn.Sequential(
-            nn.BatchNorm1d(config.hidden_size * 4),
-            Linear(config.hidden_size * 4, 1024),
+            nn.BatchNorm1d(config.hidden_size * 3),
+            Linear(config.hidden_size * 3, 1024),
             nn.BatchNorm1d(1024),
             nn.ELU(inplace=True),
             Linear(1024, num_classes),
@@ -35,23 +35,24 @@ class SPTransformer(nn.Module):
     def forward(self, x, test_mode=False):
         logits={}
         x = self.embeddings(x)
-        x, xc,cls_token_list = self.encoder(x, test_mode)
+        # x, xc,cls_token_list = self.encoder(x, test_mode)
+        cls_token_list = self.encoder(x, test_mode)
         final_hid=torch.cat(cls_token_list,dim=-1)
         struct_outs=self.part_head(final_hid)
-        complement_logits = self.head(xc)
-        probability_assist = self.softmax(complement_logits)
-        weight_assist = list(self.head.parameters())[-1]
-        assist_logit = probability_assist * (weight_assist.sum(-1))
-        probability_struct=self.softmax(struct_outs)
-        weight_struct = list(self.part_head.parameters())[-1]
-        assist_struct = probability_struct * (weight_struct.sum(-1))
+        # complement_logits = self.head(xc)
+        # probability_assist = self.softmax(complement_logits)
+        # weight_assist = list(self.head.parameters())[-1]
+        # assist_logit = probability_assist * (weight_assist.sum(-1))
+        # probability_struct=self.softmax(struct_outs)
+        # weight_struct = list(self.part_head.parameters())[-1]
+        # assist_struct = probability_struct * (weight_struct.sum(-1))
         # weight = self.head.weight
         # assist_logit = probability * (weight.sum(-1))
-        comb_outs = self.head(x) + assist_logit+assist_struct
-        logits['last_token']=cls_token_list[3]
+        # comb_outs = self.head(x) + assist_logit+assist_struct
+        logits['last_token']=cls_token_list[2]
         logits['struct_outs']=struct_outs
-        logits['comb_outs']=comb_outs
-        logits['assist_outs']=complement_logits
+        # logits['comb_outs']=comb_outs
+        # logits['assist_outs']=complement_logits
         return logits
     def load_from(self,weights):
         with torch.no_grad():
@@ -114,42 +115,43 @@ class SAPEncoder(nn.Module):
         if not test_mode:
             self.count += 1
         B, N, C = hidden_states.shape
-        selected_hidden_list=[]
+        # selected_hidden_list=[]
         class_token_list = []
         for i,layer in enumerate(self.layer):
             hidden_states,weights=layer(hidden_states)
             # 取9,10,11层
-            if i>=8:
+            if i>8:
                 j=i-8
                 _,attention_map=self.part_attention(weights)
                 # 此时的cls_token具有结构信息
                 hidden_states=self.part_structure(hidden_states,attention_map)
                 # select_hidden_states,select_weights=self.stru_atten(hidden_states)
-                select_num=torch.round(self.select_num[j]).int()
-                select_idx, select_score = self.patch_select(weights, select_num)
+                # select_num=torch.round(self.select_num[j]).int()
+                # select_idx, select_score = self.patch_select(weights, select_num)
                 # select_idx, select_score=self.patch_select(select_weights,select_num)
                 # selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
-                selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
-                selected_hidden_list.append(selected_hidden)
+                # selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
+                # selected_hidden_list.append(selected_hidden)
                 class_token_list.append(self.part_norm(hidden_states[:,0]))
-        last_token=hidden_states[:, 0].unsqueeze(1)
+        # last_token=hidden_states[:, 0].unsqueeze(1)
         part_states, part_weights=self.part_layer(hidden_states)
         _,attention_map=self.part_attention(part_weights)
         part_states= self.part_structure(part_states,attention_map)
-        cls_token=part_states[:,0].unsqueeze(1)
-        class_token_list.append(self.part_norm(part_states)[:,0])
+        # cls_token=part_states[:,0].unsqueeze(1)
+        class_token_list.append(self.part_norm(part_states[:,0]))
         # select_hidden_states, select_weights = self.stru_atten(part_states)
         # clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
-        clr, weights = self.clr_encoder(selected_hidden_list, last_token)
-        sort_idx, _ = self.patch_select(weights, select_num=84, last=True)
-        if not test_mode and self.count >= self.warm_steps:
-            layer_count=self.count_patch(sort_idx)
-            self.update_layer_select(layer_count)
-        out=clr[torch.arange(B).unsqueeze(1),sort_idx]
-        out = torch.cat((cls_token, out), dim=1)
-        out, _ = self.key_layer(out)
-        key = self.key_norm(out)
-        return key[:, 0], clr[:, 0],class_token_list
+        # clr, weights = self.clr_encoder(selected_hidden_list, last_token)
+        # sort_idx, _ = self.patch_select(weights, select_num=84, last=True)
+        # if not test_mode and self.count >= self.warm_steps:
+        #     layer_count=self.count_patch(sort_idx)
+        #     self.update_layer_select(layer_count)
+        # out=clr[torch.arange(B).unsqueeze(1),sort_idx]
+        # out = torch.cat((cls_token, out), dim=1)
+        # out, _ = self.key_layer(out)
+        # key = self.key_norm(out)
+        # return key[:, 0], clr[:, 0],class_token_list
+        return class_token_list
     def count_patch(self, sort_idx):
         # layer_count 将输出 [16, 30, 42, 52, 60, 66, 74, 84, 96, 110, 126]
         # 表示上层的选择数加本层的选择数
