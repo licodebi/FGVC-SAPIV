@@ -322,15 +322,20 @@ class RelativeCoordPredictor(nn.Module):
         # 将相对角度的值转换到0到1的范围内，通过将角度值除以np.pi，加1，再除以2
         relative_angle = (relative_angle / np.pi + 1) / 2  # (N, S) in (0, 1)
         # 调整掩码的形状与相对距离和相对角度匹配(N, H*W)
-        binary_relative_mask = binary_mask.view(N, H * W).cuda()
+        # binary_relative_mask = binary_mask.view(N, H * W).cuda()
         # 将相对距离和相对角度乘以掩码，将非掩码的位置置零
-        relative_dist = relative_dist * binary_relative_mask
-        relative_angle = relative_angle * binary_relative_mask
+        relative_dist = relative_dist
+        relative_angle = relative_angle
+        # relative_dist = relative_dist * binary_relative_mask
+        # relative_angle = relative_angle * binary_relative_mask
         # 调整基本锚点的形状(N, 2)
         basic_anchor = basic_anchor.squeeze(1)  # (N, 2)
         relative_coord_total = torch.cat((relative_dist.unsqueeze(2), relative_angle.unsqueeze(2)), dim=-1)
-        position_weight = torch.mean(masked_x, dim=-1)
+        weight=x.view(N, C, H * W).transpose(1, 2).contiguous()
+        position_weight = torch.mean(weight, dim=-1)
         position_weight = position_weight.unsqueeze(2)
+        # position_weight = torch.mean(masked_x, dim=-1)
+        # position_weight = position_weight.unsqueeze(2)
         # 是否可以换成不进行掩码的x进行平均,得到每个patch的多头权重平均值
         position_weight = torch.matmul(position_weight, position_weight.transpose(1, 2))
         # 返回
