@@ -48,7 +48,7 @@ class SPTransformer(nn.Module):
         # weight = self.head.weight
         # assist_logit = probability * (weight.sum(-1))
         comb_outs = self.head(x) + assist_logit+assist_struct
-        logits['last_token']=cls_token_list[3]
+        # logits['last_token']=cls_token_list[3]
         logits['struct_outs']=struct_outs
         logits['comb_outs']=comb_outs
         logits['assist_outs']=complement_logits
@@ -119,25 +119,26 @@ class SAPEncoder(nn.Module):
         for i,layer in enumerate(self.layer):
             hidden_states,weights=layer(hidden_states)
             # 取9,10,11层
-            if i>=8:
-                j=i-8
+            if i>=7:
                 _,attention_map=self.part_attention(weights)
                 # 此时的cls_token具有结构信息
                 hidden_states=self.part_structure(hidden_states,attention_map)
                 # select_hidden_states,select_weights=self.stru_atten(hidden_states)
-                select_num=torch.round(self.select_num[j]).int()
-                select_idx, select_score = self.patch_select(weights, select_num)
+                if i>7:
+                    j = i - 8
+                    select_num = torch.round(self.select_num[j]).int()
+                    select_idx, select_score = self.patch_select(weights, select_num)
                 # select_idx, select_score=self.patch_select(select_weights,select_num)
                 # selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
-                selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
-                selected_hidden_list.append(selected_hidden)
+                    selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
+                    selected_hidden_list.append(selected_hidden)
                 class_token_list.append(self.part_norm(hidden_states[:,0]))
         last_token=hidden_states[:, 0].unsqueeze(1)
-        part_states, part_weights=self.part_layer(hidden_states)
-        _,attention_map=self.part_attention(part_weights)
-        part_states= self.part_structure(part_states,attention_map)
-        cls_token=part_states[:,0].unsqueeze(1)
-        class_token_list.append(self.part_norm(part_states)[:,0])
+        # part_states, part_weights=self.part_layer(hidden_states)
+        # _,attention_map=self.part_attention(part_weights)
+        # part_states= self.part_structure(part_states,attention_map)
+        # cls_token=part_states[:,0].unsqueeze(1)
+        # class_token_list.append(self.part_norm(part_states)[:,0])
         # select_hidden_states, select_weights = self.stru_atten(part_states)
         # clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
         clr, weights = self.clr_encoder(selected_hidden_list, last_token)
@@ -146,7 +147,7 @@ class SAPEncoder(nn.Module):
             layer_count=self.count_patch(sort_idx)
             self.update_layer_select(layer_count)
         out=clr[torch.arange(B).unsqueeze(1),sort_idx]
-        out = torch.cat((cls_token, out), dim=1)
+        out = torch.cat((last_token, out), dim=1)
         out, _ = self.key_layer(out)
         key = self.key_norm(out)
         return key[:, 0], clr[:, 0],class_token_list
@@ -193,10 +194,15 @@ class MultiHeadSelector(nn.Module):
         select_num = self.patch_num if select_num is None else select_num
         count = torch.zeros((B, S), dtype=torch.int, device='cuda').half()
         score = x[:, :, 0, 1:]
+        # select的形状为[2, 12, select_num] [2, 12, 84]
         _, select = torch.topk(score, self.patch_num, dim=-1)
         select = select.reshape(B, -1)
+        new_score=torch.sum(score,dim=1)
+        # print("new_score形状:",new_score.shape)
+        # print("选择的索引的形状:",select.shape)
         for i, b in enumerate(select):
             count[i, :] += torch.bincount(b, minlength=S)
+        # print("count的形状",count.shape)
         # 如果last不为真
         if not last:
             count = self.enhace_local(count)
