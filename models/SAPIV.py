@@ -197,18 +197,18 @@ class MultiHeadSelector(nn.Module):
         # select的形状为[2, 12, select_num] [2, 12, 84]
         _, select = torch.topk(score, self.patch_num, dim=-1)
         select = select.reshape(B, -1)
-        new_score=torch.sum(score,dim=1)
-        # print("new_score形状:",new_score.shape)
-        # print("选择的索引的形状:",select.shape)
+        new_score=torch.sum(score,dim=1).half()
         for i, b in enumerate(select):
             count[i, :] += torch.bincount(b, minlength=S)
-        # print("count的形状",count.shape)
-        # 如果last不为真
         if not last:
-            count = self.enhace_local(count)
+            new_score = self.enhace_local(new_score)
             pass
+        # 如果last不为真
+        # if not last:
+        #     count = self.enhace_local(count)
+        #     pass
         # 对count进行排序，得到排序后的值以及对应的索引
-        patch_value, patch_idx = torch.sort(count, dim=-1, descending=True)
+        patch_value, patch_idx = torch.sort(new_score, dim=-1, descending=True)
         # 所有索引+1，从0开始变为从1开始
         patch_idx += 1
         # 取前select_num个索引，
