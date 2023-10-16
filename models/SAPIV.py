@@ -48,7 +48,7 @@ class SPTransformer(nn.Module):
         # weight = self.head.weight
         # assist_logit = probability * (weight.sum(-1))
         comb_outs = self.head(x) + assist_logit+assist_struct
-        # logits['last_token']=cls_token_list[3]
+        logits['last_token']=cls_token_list[3]
         logits['struct_outs']=struct_outs
         logits['comb_outs']=comb_outs
         logits['assist_outs']=complement_logits
