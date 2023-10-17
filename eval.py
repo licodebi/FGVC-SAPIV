@@ -28,6 +28,7 @@ def cal_train_metrics(args, msg: dict, outs: dict, labels: torch.Tensor, batch_s
     # 总损失
     loss_si=0.0
     loss_pi=0.0
+    loss_lt=0.0
     total_loss = 0.0
     for name in outs:
         if "struct_outs" in name:
@@ -40,7 +41,7 @@ def cal_train_metrics(args, msg: dict, outs: dict, labels: torch.Tensor, batch_s
         elif "last_token" in name:
             loss_co = con_loss_new(outs[name], labels)
             msg["train_loss/last_token_loss"] = loss_co
-            loss_si += loss_co
+            loss_lt += loss_co
         elif "assist_outs" in name:
             acc = top_k_corrects(outs[name], labels, tops=[1])["top-1"] / batch_size
             msg["train_acc/assist_outs_acc"] = acc
@@ -126,7 +127,7 @@ def cal_train_metrics(args, msg: dict, outs: dict, labels: torch.Tensor, batch_s
     #     loss = F.cross_entropy(outs["ori_out"], labels)
     #     msg["train_loss/ori_loss"] = loss.item()
     #     total_loss += loss.item()
-    total_loss = args.lambda_b * loss_si + (1 - args.lambda_b) * loss_pi
+    total_loss = args.lambda_b * loss_si + (1 - args.lambda_b) * loss_pi+loss_lt
     msg["train_loss/total_loss"] = total_loss
 
 

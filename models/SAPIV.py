@@ -38,20 +38,21 @@ class SPTransformer(nn.Module):
         x, xc,cls_token_list = self.encoder(x, test_mode)
         final_hid=torch.cat(cls_token_list,dim=-1)
         struct_outs=self.part_head(final_hid)
-        complement_logits = self.head(xc)
-        probability_assist = self.softmax(complement_logits)
-        weight_assist = list(self.head.parameters())[-1]
-        assist_logit = probability_assist * (weight_assist.sum(-1))
+        # complement_logits = self.head(xc)
+        # probability_assist = self.softmax(complement_logits)
+        # weight_assist = list(self.head.parameters())[-1]
+        # assist_logit = probability_assist * (weight_assist.sum(-1))
         probability_struct=self.softmax(struct_outs)
         weight_struct = list(self.part_head.parameters())[-1]
         assist_struct = probability_struct * (weight_struct.sum(-1))
         # weight = self.head.weight
         # assist_logit = probability * (weight.sum(-1))
-        comb_outs = self.head(x) + assist_logit+assist_struct
+        comb_outs = self.head(x)+assist_struct
+        # comb_outs = self.head(x) + assist_logit+assist_struct
         logits['last_token']=cls_token_list[3]
         logits['struct_outs']=struct_outs
         logits['comb_outs']=comb_outs
-        logits['assist_outs']=complement_logits
+        # logits['assist_outs']=complement_logits
         return logits
     def load_from(self,weights):
         with torch.no_grad():
