@@ -324,8 +324,8 @@ class RelativeCoordPredictor(nn.Module):
         # 调整掩码的形状与相对距离和相对角度匹配(N, H*W)
         # binary_relative_mask = binary_mask.view(N, H * W).cuda()
         # 将相对距离和相对角度乘以掩码，将非掩码的位置置零
-        relative_dist = relative_dist
-        relative_angle = relative_angle
+        # relative_dist = relative_dist
+        # relative_angle = relative_angle
         # relative_dist = relative_dist * binary_relative_mask
         # relative_angle = relative_angle * binary_relative_mask
         # 调整基本锚点的形状(N, 2)
