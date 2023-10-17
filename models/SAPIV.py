@@ -197,18 +197,21 @@ class MultiHeadSelector(nn.Module):
         # select的形状为[2, 12, select_num] [2, 12, 84]
         _, select = torch.topk(score, self.patch_num, dim=-1)
         select = select.reshape(B, -1)
-        new_score=torch.sum(score,dim=1)
+        new_score=torch.sum(score,dim=1).half()
+        if not last:
+            new_score = self.enhace_local(new_score)
+            pass
         # print("new_score形状:",new_score.shape)
         # print("选择的索引的形状:",select.shape)
-        for i, b in enumerate(select):
-            count[i, :] += torch.bincount(b, minlength=S)
-        # print("count的形状",count.shape)
-        # 如果last不为真
-        if not last:
-            count = self.enhace_local(count)
-            pass
+        # for i, b in enumerate(select):
+        #     count[i, :] += torch.bincount(b, minlength=S)
+        # # print("count的形状",count.shape)
+        # # 如果last不为真
+        # if not last:
+        #     count = self.enhace_local(count)
+        #     pass
         # 对count进行排序，得到排序后的值以及对应的索引
-        patch_value, patch_idx = torch.sort(count, dim=-1, descending=True)
+        patch_value, patch_idx = torch.sort(new_score, dim=-1, descending=True)
         # 所有索引+1，从0开始变为从1开始
         patch_idx += 1
         # 取前select_num个索引，
@@ -324,13 +327,16 @@ class RelativeCoordPredictor(nn.Module):
         # 调整掩码的形状与相对距离和相对角度匹配(N, H*W)
         binary_relative_mask = binary_mask.view(N, H * W).cuda()
         # 将相对距离和相对角度乘以掩码，将非掩码的位置置零
-        relative_dist = relative_dist * binary_relative_mask
-        relative_angle = relative_angle * binary_relative_mask
+        # relative_dist = relative_dist * binary_relative_mask
+        # relative_angle = relative_angle * binary_relative_mask
         # 调整基本锚点的形状(N, 2)
         basic_anchor = basic_anchor.squeeze(1)  # (N, 2)
         relative_coord_total = torch.cat((relative_dist.unsqueeze(2), relative_angle.unsqueeze(2)), dim=-1)
-        position_weight = torch.mean(masked_x, dim=-1)
+        weight = x.view(N, C, H * W).transpose(1, 2).contiguous()
+        position_weight = torch.mean(weight, dim=-1)
         position_weight = position_weight.unsqueeze(2)
+        # position_weight = torch.mean(masked_x, dim=-1)
+        # position_weight = position_weight.unsqueeze(2)
         # 是否可以换成不进行掩码的x进行平均,得到每个patch的多头权重平均值
         position_weight = torch.matmul(position_weight, position_weight.transpose(1, 2))
         # 返回
