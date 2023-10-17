@@ -117,7 +117,7 @@ class SAPEncoder(nn.Module):
         selected_hidden_list=[]
         class_token_list = []
         for i,layer in enumerate(self.layer):
-            hidden_states,weights=layer(hidden_states)
+            hidden_states,weights,contribution=layer(hidden_states)
             # 取9,10,11层
             if i>=7:
                 _,attention_map=self.part_attention(weights)
@@ -127,7 +127,7 @@ class SAPEncoder(nn.Module):
                 if i>7:
                     j = i - 8
                     select_num = torch.round(self.select_num[j]).int()
-                    select_idx, select_score = self.patch_select(weights, select_num)
+                    select_idx, select_score = self.patch_select(weights,contribution,select_num)
                 # select_idx, select_score=self.patch_select(select_weights,select_num)
                 # selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
                     selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
@@ -141,14 +141,14 @@ class SAPEncoder(nn.Module):
         # class_token_list.append(self.part_norm(part_states)[:,0])
         # select_hidden_states, select_weights = self.stru_atten(part_states)
         # clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
-        clr, weights = self.clr_encoder(selected_hidden_list, last_token)
-        sort_idx, _ = self.patch_select(weights, select_num=84, last=True)
+        clr, weights,contribution= self.clr_encoder(selected_hidden_list, last_token)
+        sort_idx, _ = self.patch_select(weights,contribution, select_num=84, last=True)
         if not test_mode and self.count >= self.warm_steps:
             layer_count=self.count_patch(sort_idx)
             self.update_layer_select(layer_count)
         out=clr[torch.arange(B).unsqueeze(1),sort_idx]
         out = torch.cat((last_token, out), dim=1)
-        out, _ = self.key_layer(out)
+        out,_,_ = self.key_layer(out)
         key = self.key_norm(out)
         return key[:, 0], clr[:, 0],class_token_list
     def count_patch(self, sort_idx):
@@ -188,12 +188,14 @@ class MultiHeadSelector(nn.Module):
                                     [1, 2, 1]], device='cuda').unsqueeze(0).unsqueeze(0).half()
         self.conv = F.conv2d
     # 得到的权重的值为(B,Head,S+1,S+1)
-    def forward(self, x, select_num=None, last=False):
+    def forward(self, x,contribution,select_num=None, last=False):
         # 得到B、头数、patch大小
         B,C,S = x.shape[0],x.shape[1],x.shape[3] - 1
         select_num = self.patch_num if select_num is None else select_num
         count = torch.zeros((B, S), dtype=torch.int, device='cuda').half()
-        score = x[:, :, 0, 1:]
+        row_score = x[:, :, 0, 1:]
+        col_score=contribution[:,:,1:]
+        score=row_score*col_score
         # select的形状为[2, 12, select_num] [2, 12, 84]
         _, select = torch.topk(score, self.patch_num, dim=-1)
         select = select.reshape(B, -1)
@@ -237,9 +239,9 @@ class CrossLayerRefinement(nn.Module):
         out = torch.cat((cls, out), dim=1)
         # 得到out(B,total_num+1,hidden_size)
         # weights (B,Head,total_num+1,total_num+1)
-        out, weights = self.clr_layer(out)
+        out, weights,contribution = self.clr_layer(out)
         out = self.clr_norm(out)
-        return out, weights
+        return out, weights,contribution
 # 处理部分结构信息
 class Part_Structure(nn.Module):
     def __init__(self,hidden_size):
