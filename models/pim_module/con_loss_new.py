@@ -30,7 +30,6 @@ def con_loss_new(features, labels):
     scores = 1 - sim
     #计算正样本之间的相似性分数，保留正样本的分数，而负样本的分数被设为零
     positive_scores = torch.where(pos_label_matrix == 1.0, scores, scores - scores)
-    print("positive_scores矩阵",positive_scores)
     mask = torch.eye(features.size(0)).cuda()
     positive_scores = torch.where(mask == 1.0, positive_scores - positive_scores, positive_scores)
     positive_scores = torch.sum(positive_scores, dim=1, keepdim=True) / (
