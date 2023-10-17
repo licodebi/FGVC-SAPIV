@@ -200,6 +200,7 @@ def train(args, epoch, model, scaler, amp_context, optimizer, schedule, train_lo
             outs = model(datas)
             loss_pi = 0.
             loss_si = 0.
+            loss_lt = 0.
             loss= 0.
             for name in outs:
                 if "struct_outs" in name:
@@ -214,7 +215,7 @@ def train(args, epoch, model, scaler, amp_context, optimizer, schedule, train_lo
                 #         loss_b0 = 0.0
                 elif "last_token" in name:
                     loss_co = con_loss_new(outs[name], labels)
-                    loss_si+=loss_co
+                    loss_lt+=loss_co
                 elif "assist_outs" in name:
                     loss_ao=nn.CrossEntropyLoss()(outs[name],labels)
                     loss_pi+=args.lambda_a*loss_ao
@@ -277,7 +278,7 @@ def train(args, epoch, model, scaler, amp_context, optimizer, schedule, train_lo
                 elif "ori_out" in name:
                     loss_ori = F.cross_entropy(outs[name], labels)
                     loss += loss_ori
-            loss = args.lambda_b * loss_si + (1 - args.lambda_b) * loss_pi
+            loss = args.lambda_b * loss_si + (1 - args.lambda_b) * loss_pi+loss_lt
             # 当前批次不是最后 n_left_batchs 个未处理的批次
             if batch_id < len(train_loader) - n_left_batchs:
                 loss /= args.update_freq
