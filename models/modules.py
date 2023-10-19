@@ -91,7 +91,6 @@ class Embeddings(nn.Module):
 
         x = x.flatten(2)
         x = x.transpose(-1, -2)
-        print(x.shape)
         x = torch.cat((cls_tokens, x), dim=1)
 
         embeddings = x + self.position_embeddings
