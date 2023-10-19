@@ -164,12 +164,13 @@ class Attention(nn.Module):
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
         # 对注意力权重进行缩放
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        attention_scores = self.dropkey(attention_scores,0.1)
         # 将权重转为概率形式
         attention_probs = self.softmax(attention_scores)
         # B,C,S(H+1)
         contribution=self.softmax2(attention_scores[:,:,:,:])[:,:,:,0]
         weights = attention_probs
-        attention_probs = self.attn_dropout(attention_probs)
+        # attention_probs = self.attn_dropout(attention_probs)
         # print("weights的形状",weights.shape)
 
         context_layer = torch.matmul(attention_probs, value_layer)
@@ -182,6 +183,10 @@ class Attention(nn.Module):
         attention_output = self.proj_dropout(attention_output)
         # 返回注意力输出，权重矩阵概率分布
         return attention_output, weights,contribution
+    def dropkey(self,attention,mask_ratio):
+        m_r=torch.ones_like(attention)*mask_ratio
+        attention=attention+torch.bernoulli(m_r)*(-1e-12)
+        return attention
 
 class Block(nn.Module):
     def __init__(self, config):
