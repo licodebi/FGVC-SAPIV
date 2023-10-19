@@ -14,7 +14,7 @@ class SPTransformer(nn.Module):
         self.num_classes=num_classes
         self.img_size=img_size
         self.embeddings=Embeddings(config,img_size=img_size,split=split)
-        self.encoder=SAPEncoder(config,update_warm,patch_num,total_num)
+        self.encoder=SAPEncoder(config,update_warm,patch_num,total_num,split)
         # self.head = Linear(config.hidden_size, num_classes)
         self.head = nn.Sequential(
             nn.BatchNorm1d(config.hidden_size),
@@ -35,6 +35,8 @@ class SPTransformer(nn.Module):
     def forward(self, x, test_mode=False):
         logits={}
         x = self.embeddings(x)
+        # [2, 1369, 768] [2, 1370, 768]
+        # [2, 784, 768] [2, 785, 768]
         x, xc,cls_token_list = self.encoder(x, test_mode)
         final_hid=torch.cat(cls_token_list,dim=-1)
         struct_outs=self.part_head(final_hid)
@@ -83,19 +85,21 @@ class SPTransformer(nn.Module):
                             # print(uname)
                             unit.load_from(weights, n_block=uname)
 class SAPEncoder(nn.Module):
-    def __init__(self,config,update_warm,patch_num,total_num):
+    def __init__(self,config,update_warm,patch_num,total_num,split):
         super(SAPEncoder, self).__init__()
         self.warm_steps = update_warm
         self.patch_num=patch_num
         self.layer = nn.ModuleList()
+        self.layer_num=config.num_layers
         # 前11层
-        for _ in range(config.num_layers - 1):
+        for _ in range(config.num_layers):
             layer=Block(config)
             self.layer.append(copy.deepcopy(layer))
         self.clr_layer = Block(config)
         self.key_layer = Block(config)
-        self.stru_atten=Block(config)
-        self.part_layer=Block(config)
+        # self.stru_atten=Block(config)
+        # self.part_layer=Block(config)
+        self.part_layer=self.layer[-1]
 
         self.key_norm = LayerNorm(config.hidden_size, eps=1e-6)
         self.part_norm = LayerNorm(config.hidden_size, eps=1e-6)
@@ -103,20 +107,22 @@ class SAPEncoder(nn.Module):
         self.part_attention=Part_Attention()
         # 总共选择层的大小一般为126，得到后三层每层选择的大小
         self.total_num=total_num
-        self.select_rate = torch.tensor([42, 42, 42], device='cuda') / self.total_num
-
+        self.select_num=torch.tensor([42, 42, 42], device='cuda')
+        self.select_rate = self.select_num/ torch.sum(self.select_num)
         self.select_num = self.select_rate * self.total_num
         self.clr_encoder = CrossLayerRefinement(config, self.clr_layer)
         self.part_structure = Part_Structure(config.hidden_size)
         self.count = 0
 
     def forward(self,hidden_states, test_mode=False):
+        print(self.select_num[0])
         if not test_mode:
             self.count += 1
         B, N, C = hidden_states.shape
         selected_hidden_list=[]
         class_token_list = []
-        for i,layer in enumerate(self.layer):
+        for i in range(self.layer_num-1):
+            layer=self.layer[i]
             hidden_states,weights,contribution=layer(hidden_states)
             # 取9,10,11层
             if i>7:
@@ -174,7 +180,6 @@ class SAPEncoder(nn.Module):
 
         self.select_rate = self.select_rate * (1 - alpha) + alpha * new_rate
         self.select_rate /= self.select_rate.sum()
-        # print("每次的比例值",self.select_rate)
         self.select_num = self.select_rate * self.total_num
 # 多头选择器以及部分注意特征图
 class MultiHeadSelector(nn.Module):
@@ -433,7 +438,7 @@ if __name__ == '__main__':
     config = get_b16_config()
     # com = clrEncoder(config,)
     # com.to(device='cuda')
-    net = SPTransformer(config,200,448,500,84,128,split='non-overlap').cuda()
+    net = SPTransformer(config,200,448,500,84,129,split='non-overlap').cuda()
     # hidden_state = torch.arange(400*768).reshape(2,200,768)/1.0
     x = torch.rand(2, 3, 448, 448, device='cuda')
     y = net(x)
