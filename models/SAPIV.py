@@ -115,7 +115,6 @@ class SAPEncoder(nn.Module):
         self.count = 0
 
     def forward(self,hidden_states, test_mode=False):
-        print(self.select_num[0])
         if not test_mode:
             self.count += 1
         B, N, C = hidden_states.shape
