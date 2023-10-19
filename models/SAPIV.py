@@ -119,35 +119,35 @@ class SAPEncoder(nn.Module):
         for i,layer in enumerate(self.layer):
             hidden_states,weights,contribution=layer(hidden_states)
             # 取9,10,11层
-            if i>=7:
+            if i>7:
+                j=i-8
+                select_num = torch.round(self.select_num[j]).int()
+                select_idx, select_score = self.patch_select(weights,contribution,select_num)
+                # select_idx, select_score=self.patch_select(select_weights,select_num)
+                # selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
+                selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
+                selected_hidden_list.append(selected_hidden)
                 _,attention_map=self.part_attention(weights)
                 # 此时的cls_token具有结构信息
                 hidden_states=self.part_structure(hidden_states,attention_map)
                 # select_hidden_states,select_weights=self.stru_atten(hidden_states)
-                if i>7:
-                    j = i - 8
-                    select_num = torch.round(self.select_num[j]).int()
-                    select_idx, select_score = self.patch_select(weights,contribution,select_num)
-                # select_idx, select_score=self.patch_select(select_weights,select_num)
-                # selected_hidden = select_hidden_states[torch.arange(B).unsqueeze(1),select_idx]
-                    selected_hidden = hidden_states[torch.arange(B).unsqueeze(1), select_idx]
-                    selected_hidden_list.append(selected_hidden)
                 class_token_list.append(self.part_norm(hidden_states[:,0]))
-        last_token=hidden_states[:, 0].unsqueeze(1)
-        # part_states, part_weights=self.part_layer(hidden_states)
-        # _,attention_map=self.part_attention(part_weights)
-        # part_states= self.part_structure(part_states,attention_map)
-        # cls_token=part_states[:,0].unsqueeze(1)
-        # class_token_list.append(self.part_norm(part_states)[:,0])
+        # last_token=hidden_states[:, 0].unsqueeze(1)
+        stru_states, stru_weights,_=self.part_layer(hidden_states)
+        _,attention_map=self.part_attention(stru_weights)
+        stru_states= self.part_structure(stru_states,attention_map)
+        cls_token=stru_states[:,0].unsqueeze(1)
+        class_token_list.append(self.part_norm(stru_states)[:,0])
         # select_hidden_states, select_weights = self.stru_atten(part_states)
         # clr,weights=self.clr_encoder(selected_hidden_list,cls_token)
-        clr, weights,contribution= self.clr_encoder(selected_hidden_list, last_token)
+        clr, weights,contribution= self.clr_encoder(selected_hidden_list, cls_token)
+        # clr, weights,contribution= self.clr_encoder(selected_hidden_list, last_token)
         sort_idx, _ = self.patch_select(weights,contribution, select_num=84, last=True)
         if not test_mode and self.count >= self.warm_steps:
             layer_count=self.count_patch(sort_idx)
             self.update_layer_select(layer_count)
         out=clr[torch.arange(B).unsqueeze(1),sort_idx]
-        out = torch.cat((last_token, out), dim=1)
+        out = torch.cat((cls_token, out), dim=1)
         out,_,_ = self.key_layer(out)
         key = self.key_norm(out)
         return key[:, 0], clr[:, 0],class_token_list
@@ -326,13 +326,16 @@ class RelativeCoordPredictor(nn.Module):
         # 调整掩码的形状与相对距离和相对角度匹配(N, H*W)
         binary_relative_mask = binary_mask.view(N, H * W).cuda()
         # 将相对距离和相对角度乘以掩码，将非掩码的位置置零
-        relative_dist = relative_dist * binary_relative_mask
-        relative_angle = relative_angle * binary_relative_mask
+        # relative_dist = relative_dist * binary_relative_mask
+        # relative_angle = relative_angle * binary_relative_mask
         # 调整基本锚点的形状(N, 2)
         basic_anchor = basic_anchor.squeeze(1)  # (N, 2)
         relative_coord_total = torch.cat((relative_dist.unsqueeze(2), relative_angle.unsqueeze(2)), dim=-1)
-        position_weight = torch.mean(masked_x, dim=-1)
+        weight = x.view(N, C, H * W).transpose(1, 2).contiguous()
+        position_weight = torch.mean(weight, dim=-1)
         position_weight = position_weight.unsqueeze(2)
+        # position_weight = torch.mean(masked_x, dim=-1)
+        # position_weight = position_weight.unsqueeze(2)
         # 是否可以换成不进行掩码的x进行平均,得到每个patch的多头权重平均值
         position_weight = torch.matmul(position_weight, position_weight.transpose(1, 2))
         # 返回
